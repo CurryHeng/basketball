@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>球星图片搜索下载</title>
+    <meta name="description" content="搜索并下载免费可商用的球星图片，支持NBA球星、足球球星等">
+    <link rel="stylesheet" href="css/image-search.css">
+</head>
+<body>
+    <nav class="nav-bar">
+        <a href="index.html" class="nav-link">球星资料库</a>
+        <a href="image-search.html" class="nav-link active">图片搜索</a>
+    </nav>
+
+    <div class="container">
+        <header class="header">
+            <h1 class="title">🏀 球星图片搜索</h1>
+            <p class="subtitle">搜索免费可商用图片，一键下载到本地</p>
+        </header>
+
+        <div class="config-panel">
+            <details>
+                <summary>⚙️ API 配置（可选）</summary>
+                <div class="config-form">
+                    <p class="config-hint">配置API Key可获得更精准的搜索结果，不配置也可正常使用。</p>
+                    <div class="config-item">
+                        <label>Unsplash API Key</label>
+                        <input type="text" id="unsplash-key" placeholder="可选，从 unsplash.com/developers 获取">
+                    </div>
+                    <div class="config-item">
+                        <label>Pexels API Key</label>
+                        <input type="text" id="pexels-key" placeholder="可选，从 pexels.com/api 获取">
+                    </div>
+                    <button id="save-config" class="btn-save">保存配置</button>
+                </div>
+            </details>
+        </div>
+
+        <div class="presets-section">
+            <h3>🔥 快速搜索</h3>
+            <div class="presets">
+                <button class="preset-btn" data-query="stephen curry basketball">库里</button>
+                <button class="preset-btn" data-query="lebron james basketball">詹姆斯</button>
+                <button class="preset-btn" data-query="kevin durant basketball">杜兰特</button>
+                <button class="preset-btn" data-query="giannis antetokounmpo">字母哥</button>
+                <button class="preset-btn" data-query="luka doncic basketball">东契奇</button>
+                <button class="preset-btn" data-query="michael jordan basketball">乔丹</button>
+                <button class="preset-btn" data-query="kobe bryant basketball">科比</button>
+                <button class="preset-btn" data-query="joel embiid basketball">恩比德</button>
+                <button class="preset-btn" data-query="nikola jokic basketball">约基奇</button>
+            </div>
+        </div>
+
+        <div class="search-box">
+            <input type="text" id="search-input" placeholder="输入球星名称或关键词...">
+            <select id="source-select">
+                <option value="unsplash">Unsplash</option>
+                <option value="pexels">Pexels</option>
+            </select>
+            <button id="search-btn">🔍 搜索</button>
+        </div>
+
+        <div id="status" class="status"></div>
+
+        <div id="images-grid" class="images-grid"></div>
+
+        <div id="actions-bar" class="actions-bar hidden">
+            <span id="selected-count">已选择 0 张</span>
+            <button id="download-all-btn" class="btn-primary">下载全部</button>
+        </div>
+
+        <div id="download-log" class="download-log hidden">
+            <h4>📥 下载日志</h4>
+            <div id="log-content"></div>
+        </div>
+
+        <footer class="footer">
+            <p>💡 提示：图片来源于免费图库，可放心使用</p>
+            <p class="footer-links">
+                <a href="https://unsplash.com" target="_blank">Unsplash</a> ·
+                <a href="https://pexels.com" target="_blank">Pexels</a>
+            </p>
+        </footer>
+    </div>
+
+    <script src="js/image-search.js"></script>
+</body>
+</html>

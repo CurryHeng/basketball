@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+
+# 虚拟环境
+venv/
+ENV/
+env/
+.venv/
+
+# 环境变量（重要！包含API Key）
+.env
+
+# 数据库文件（可选，看你是否需要保留用户数据）
+# data/basketball.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 系统文件
+.DS_Store
+Thumbs.db
+*.log
+
+# CodeArts 内部文件
+.arts/
+.codeartsdoer/
+
+# 临时文件
+*.tmp
+*.temp
+
+# PowerShell 脚本（可选）
+# fetch_nba.ps1

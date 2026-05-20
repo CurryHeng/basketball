@@ -1,0 +1,17 @@
+{
+  "name": "basketball-stars",
+  "version": "1.0.0",
+  "description": "篮球球星资料库 + 天赋分析系统",
+  "main": "app.py",
+  "scripts": {
+    "start": "python app.py",
+    "dev": "python app.py"
+  },
+  "keywords": ["basketball", "nba", "stars", "talent-analysis"],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": ""
+  }
+}

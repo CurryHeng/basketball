@@ -1,0 +1,298 @@
+# -*- coding: utf-8 -*-
+"""
+数据库模型 - SQLite本地存储
+"""
+
+import sqlite3
+import json
+from datetime import datetime
+from pathlib import Path
+
+DB_PATH = Path(__file__).parent.parent / "data" / "basketball.db"
+
+def get_db():
+    """获取数据库连接"""
+    DB_PATH.parent.mkdir(exist_ok=True)
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    """初始化数据库表"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # 用户身体素质数据表
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS user_profiles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nickname TEXT NOT NULL,
+            height REAL NOT NULL,
+            weight REAL NOT NULL,
+            arm_span REAL,
+            vertical_jump REAL,
+            running_jump REAL,
+            position TEXT,
+            play_style TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # 天赋评分记录表
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS talent_scores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            matched_star TEXT,
+            matched_star_active TEXT,
+            matched_star_fun TEXT,
+            scores TEXT,
+            comments TEXT,
+            version TEXT DEFAULT 'active',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES user_profiles (id)
+        )
+    """)
+    
+    # 排行榜表
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS rankings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            total_score REAL NOT NULL,
+            rank_type TEXT DEFAULT 'total',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES user_profiles (id)
+        )
+    """)
+    
+    # 预留：视频上传记录表
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS video_uploads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            video_path TEXT,
+            status TEXT DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES user_profiles (id)
+        )
+    """)
+    
+    # 预留：双人对比记录表
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS duel_comparisons (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user1_id INTEGER NOT NULL,
+            user2_id INTEGER NOT NULL,
+            comparison_data TEXT,
+            winner_id INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user1_id) REFERENCES user_profiles (id),
+            FOREIGN KEY (user2_id) REFERENCES user_profiles (id)
+        )
+    """)
+    
+    conn.commit()
+    conn.close()
+    print("数据库初始化完成")
+
+def save_user_profile(data):
+    """保存用户身体素质数据"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        INSERT INTO user_profiles 
+        (nickname, height, weight, arm_span, vertical_jump, running_jump, position, play_style)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        data.get('nickname', '匿名球员'),
+        data.get('height'),
+        data.get('weight'),
+        data.get('armSpan'),
+        data.get('verticalJump'),
+        data.get('runningJump'),
+        data.get('position'),
+        json.dumps(data.get('playStyle', []), ensure_ascii=False)
+    ))
+    
+    user_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    
+    return user_id
+
+def save_talent_score(user_id, result):
+    """保存天赋评分结果"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        INSERT INTO talent_scores 
+        (user_id, matched_star, matched_star_active, matched_star_fun, scores, comments, version)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (
+        user_id,
+        result.get('matchedStar'),
+        json.dumps(result.get('matchedStarActive'), ensure_ascii=False),
+        json.dumps(result.get('matchedStarFun'), ensure_ascii=False),
+        json.dumps(result.get('scores'), ensure_ascii=False),
+        json.dumps(result.get('comments'), ensure_ascii=False),
+        'active'
+    ))
+    
+    score_id = cursor.lastrowid
+    
+    # 更新排行榜
+    total_score = sum(result.get('scores', {}).values()) / 5
+    cursor.execute("""
+        INSERT INTO rankings (user_id, total_score, rank_type)
+        VALUES (?, ?, 'total')
+    """, (user_id, total_score))
+    
+    conn.commit()
+    conn.close()
+    
+    return score_id
+
+def get_rankings(limit=10):
+    """获取天赋排行榜"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT r.id, r.user_id, r.total_score, up.nickname, up.height, up.weight, up.position,
+               r.created_at
+        FROM rankings r
+        JOIN user_profiles up ON r.user_id = up.id
+        ORDER BY r.total_score DESC
+        LIMIT ?
+    """, (limit,))
+    
+    rows = cursor.fetchall()
+    conn.close()
+    
+    rankings = []
+    for i, row in enumerate(rows, 1):
+        rankings.append({
+            'rank': i,
+            'userId': row['user_id'],
+            'nickname': row['nickname'],
+            'height': row['height'],
+            'weight': row['weight'],
+            'position': row['position'],
+            'totalScore': round(row['total_score'], 1),
+            'createdAt': row['created_at']
+        })
+    
+    return rankings
+
+def get_user_detail(user_id):
+    """获取用户完整详情（用于排行榜点击）"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT id, nickname, height, weight, arm_span, vertical_jump, 
+               running_jump, position, play_style, created_at
+        FROM user_profiles
+        WHERE id = ?
+    """, (user_id,))
+    
+    user_row = cursor.fetchone()
+    if not user_row:
+        conn.close()
+        return None
+    
+    cursor.execute("""
+        SELECT matched_star, matched_star_active, matched_star_fun, 
+               scores, comments, created_at
+        FROM talent_scores
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+    """, (user_id,))
+    
+    score_row = cursor.fetchone()
+    conn.close()
+    
+    result = {
+        'user': {
+            'id': user_row['id'],
+            'nickname': user_row['nickname'],
+            'height': user_row['height'],
+            'weight': user_row['weight'],
+            'armSpan': user_row['arm_span'],
+            'verticalJump': user_row['vertical_jump'],
+            'runningJump': user_row['running_jump'],
+            'position': user_row['position'],
+            'playStyle': json.loads(user_row['play_style']) if user_row['play_style'] else [],
+            'createdAt': user_row['created_at']
+        },
+        'talent': None
+    }
+    
+    if score_row:
+        result['talent'] = {
+            'matchedStar': score_row['matched_star'],
+            'matchedStarActive': json.loads(score_row['matched_star_active']) if score_row['matched_star_active'] else {},
+            'matchedStarFun': json.loads(score_row['matched_star_fun']) if score_row['matched_star_fun'] else {},
+            'scores': json.loads(score_row['scores']) if score_row['scores'] else {},
+            'comments': json.loads(score_row['comments']) if score_row['comments'] else {},
+            'createdAt': score_row['created_at']
+        }
+    
+    return result
+
+def get_user_history(user_id, limit=5):
+    """获取用户历史记录"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT id, matched_star, scores, created_at
+        FROM talent_scores
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+        LIMIT ?
+    """, (user_id, limit))
+    
+    rows = cursor.fetchall()
+    conn.close()
+    
+    history = []
+    for row in rows:
+        history.append({
+            'id': row['id'],
+            'matchedStar': row['matched_star'],
+            'scores': json.loads(row['scores']) if row['scores'] else {},
+            'createdAt': row['created_at']
+        })
+    
+    return history
+
+def get_all_users():
+    """获取所有用户（用于双人对比）"""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT id, nickname, height, weight, position
+        FROM user_profiles
+        ORDER BY created_at DESC
+    """)
+    
+    rows = cursor.fetchall()
+    conn.close()
+    
+    users = []
+    for row in rows:
+        users.append({
+            'id': row['id'],
+            'nickname': row['nickname'],
+            'height': row['height'],
+            'weight': row['weight'],
+            'position': row['position']
+        })
+    
+    return users
