@@ -207,15 +207,14 @@ def get_templates():
     })
 
 if __name__ == '__main__':
+    init_db()
+
+    port = int(os.environ.get('PORT', 5000))
+    debug = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
+
     print("=" * 50)
     print("篮球天赋分析后端启动")
+    print(f"端口: {port}")
     print("=" * 50)
-    
-    init_db()
-    
-    print("\n服务器地址: http://127.0.0.1:5000")
-    print("API文档: http://127.0.0.1:5000/")
-    print("\n按 Ctrl+C 停止服务器")
-    print("=" * 50)
-    
-    app.run(host='0.0.0.0', port=5000, debug=True)
+
+    app.run(host='0.0.0.0', port=port, debug=debug)
