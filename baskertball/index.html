@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>篮球球星资料库</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <nav class="main-nav">
+        <button class="nav-btn active" data-page="home">球星资料库</button>
+        <button class="nav-btn" data-page="talent">天赋分析</button>
+        <button class="nav-btn" data-page="rankings">排行榜</button>
+        <a href="image-search.html" class="nav-link-btn">图片搜索</a>
+    </nav>
+
+    <div id="home-page" class="page">
+        <header class="header">
+            <h1 class="title">
+                <span class="title-icon">🏀</span>
+                篮球球星资料库
+            </h1>
+            <div class="search-container">
+                <input type="text" id="search-input" class="search-input" placeholder="搜索球星姓名或昵称...">
+                <span class="search-icon">🔍</span>
+            </div>
+        </header>
+
+        <div class="filter-section">
+            <div class="team-tags" id="team-tags"></div>
+        </div>
+
+        <div class="stats-bar">
+            <span id="result-count" class="result-count">加载中...</span>
+        </div>
+
+        <main class="cards-container" id="cards-container"></main>
+
+        <div id="empty-state" class="empty-state hidden">
+            <div class="empty-icon">🔍</div>
+            <p class="empty-text">没有找到匹配的球星</p>
+            <button id="clear-filters" class="btn-clear">清除筛选</button>
+        </div>
+    </div>
+
+    <div id="talent-page" class="page hidden">
+        <div class="talent-container">
+            <h2 class="talent-title">🏀 篮球天赋分析</h2>
+            <p class="talent-subtitle">输入你的身体数据，匹配NBA球星模板！</p>
+            
+            <form id="talent-form" class="talent-form">
+                <div class="form-group">
+                    <label>昵称 <span class="required">*</span></label>
+                    <input type="text" name="nickname" placeholder="你的球友昵称" required>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>身高(cm) <span class="required">*</span></label>
+                        <input type="number" name="height" placeholder="175-220" min="150" max="250" required>
+                    </div>
+                    <div class="form-group">
+                        <label>体重(kg) <span class="required">*</span></label>
+                        <input type="number" name="weight" placeholder="50-150" min="40" max="200" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>臂展(cm)</label>
+                        <input type="number" name="armSpan" placeholder="可选">
+                    </div>
+                    <div class="form-group">
+                        <label>惯用位置</label>
+                        <select name="position">
+                            <option value="">选择位置</option>
+                            <option value="PG">控球后卫</option>
+                            <option value="SG">得分后卫</option>
+                            <option value="SF">小前锋</option>
+                            <option value="PF">大前锋</option>
+                            <option value="C">中锋</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>原地弹跳(cm)</label>
+                        <input type="number" name="verticalJump" placeholder="40-100">
+                    </div>
+                    <div class="form-group">
+                        <label>助跑弹跳(cm)</label>
+                        <input type="number" name="runningJump" placeholder="50-120">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>打法风格（可多选）</label>
+                    <div class="style-tags">
+                        <label class="style-tag"><input type="checkbox" name="playStyle" value="投射">投射</label>
+                        <label class="style-tag"><input type="checkbox" name="playStyle" value="突破">突破</label>
+                        <label class="style-tag"><input type="checkbox" name="playStyle" value="组织">组织</label>
+                        <label class="style-tag"><input type="checkbox" name="playStyle" value="防守">防守</label>
+                        <label class="style-tag"><input type="checkbox" name="playStyle" value="单打">单打</label>
+                        <label class="style-tag"><input type="checkbox" name="playStyle" value="暴扣">暴扣</label>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-submit">开始分析</button>
+            </form>
+
+            <div id="talent-result" class="talent-result hidden">
+                <div class="result-header">
+                    <h3>分析结果</h3>
+                </div>
+                
+                <div class="result-match">
+                    <div class="match-card active-match">
+                        <div class="match-label">现役球星模板</div>
+                        <div id="result-star-active" class="match-name"></div>
+                        <div id="result-star-desc" class="match-desc"></div>
+                    </div>
+                    <div class="match-card fun-match">
+                        <div class="match-label">养生版本</div>
+                        <div id="result-star-fun" class="match-name"></div>
+                        <div id="result-star-fun-desc" class="match-desc"></div>
+                    </div>
+                </div>
+
+                <div class="result-scores">
+                    <h4>天赋评分</h4>
+                    <div class="score-bars" id="score-bars"></div>
+                </div>
+
+                <div class="result-comments">
+                    <h4>专家点评</h4>
+                    <div id="comments-list"></div>
+                </div>
+
+                <button id="retry-btn" class="btn-retry">重新分析</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="rankings-page" class="page hidden">
+        <div class="rankings-container">
+            <h2 class="rankings-title">🏆 天赋排行榜</h2>
+            <div id="rankings-list" class="rankings-list"></div>
+        </div>
+    </div>
+
+    <div id="user-detail-page" class="page hidden">
+        <div class="user-detail-container">
+            <button id="back-to-rankings" class="btn-back">← 返回排行榜</button>
+            
+            <div class="user-profile-card">
+                <h2 id="user-detail-name" class="user-name"></h2>
+                <div class="user-meta-grid">
+                    <div class="user-meta-item">
+                        <span class="meta-label">身高</span>
+                        <span id="user-detail-height" class="meta-value"></span>
+                    </div>
+                    <div class="user-meta-item">
+                        <span class="meta-label">体重</span>
+                        <span id="user-detail-weight" class="meta-value"></span>
+                    </div>
+                    <div class="user-meta-item">
+                        <span class="meta-label">臂展</span>
+                        <span id="user-detail-armspan" class="meta-value"></span>
+                    </div>
+                    <div class="user-meta-item">
+                        <span class="meta-label">位置</span>
+                        <span id="user-detail-position" class="meta-value"></span>
+                    </div>
+                    <div class="user-meta-item">
+                        <span class="meta-label">原地弹跳</span>
+                        <span id="user-detail-vertical" class="meta-value"></span>
+                    </div>
+                    <div class="user-meta-item">
+                        <span class="meta-label">助跑弹跳</span>
+                        <span id="user-detail-running" class="meta-value"></span>
+                    </div>
+                </div>
+                <div class="user-styles">
+                    <span class="meta-label">打法风格：</span>
+                    <span id="user-detail-styles"></span>
+                </div>
+            </div>
+
+            <div id="user-talent-section" class="user-talent-section">
+                <h3>🎯 匹配球星</h3>
+                <div class="matched-star-card">
+                    <div class="star-avatar" id="star-avatar">🏀</div>
+                    <div class="star-info">
+                        <div class="star-name" id="matched-star-name"></div>
+                        <div class="star-nickname" id="matched-star-nickname"></div>
+                        <div class="star-desc" id="matched-star-desc"></div>
+                    </div>
+                </div>
+
+                <h3>📊 天赋评分</h3>
+                <div class="user-score-bars" id="user-score-bars"></div>
+
+                <h3>💬 专家点评</h3>
+                <div class="user-comments" id="user-comments"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="detail-page" class="page hidden">
+        <div class="detail-container">
+            <div class="detail-left">
+                <div class="detail-image-wrapper">
+                    <div id="detail-image-loading" class="image-loading">加载中...</div>
+                    <img id="detail-image" class="detail-image" src="" alt="">
+                </div>
+                <div class="detail-info">
+                    <h2 id="detail-name" class="detail-name"></h2>
+                    <div id="detail-nickname" class="detail-nickname"></div>
+                    <div class="detail-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">球队</span>
+                            <span id="detail-team" class="meta-value"></span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">位置</span>
+                            <span id="detail-position" class="meta-value"></span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">身高</span>
+                            <span id="detail-height" class="meta-value"></span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">体重</span>
+                            <span id="detail-weight" class="meta-value"></span>
+                        </div>
+                    </div>
+                    <div class="detail-honors">
+                        <span class="honors-label">🏆 荣誉</span>
+                        <p id="detail-honors" class="honors-text"></p>
+                    </div>
+                </div>
+            </div>
+            <div class="detail-right">
+                <div class="action-section">
+                    <h3 class="action-title">精彩动作</h3>
+                    <div class="gif-wrapper">
+                        <div id="gif-loading" class="image-loading">加载中...</div>
+                        <img id="detail-gif" class="action-gif" src="" alt="">
+                    </div>
+                    <p id="detail-action-desc" class="action-desc"></p>
+                </div>
+            </div>
+        </div>
+        <div class="detail-footer">
+            <button id="back-btn" class="btn-back">← 返回首页</button>
+        </div>
+    </div>
+
+    <script src="js/main.js"></script>
+</body>
+</html>
