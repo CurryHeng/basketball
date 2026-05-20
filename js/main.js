@@ -4,12 +4,12 @@ let selectedTeam = '全部';
 let searchQuery = '';
 let debounceTimer = null;
 
-const API_BASE = 'http://127.0.0.1:5000';
-
 const homePage = document.getElementById('home-page');
 const detailPage = document.getElementById('detail-page');
 const talentPage = document.getElementById('talent-page');
 const rankingsPage = document.getElementById('rankings-page');
+const authPage = document.getElementById('auth-page');
+const userDetailPage = document.getElementById('user-detail-page');
 const searchInput = document.getElementById('search-input');
 const teamTagsContainer = document.getElementById('team-tags');
 const cardsContainer = document.getElementById('cards-container');
@@ -37,7 +37,9 @@ function switchPage(page) {
     detailPage.classList.add('hidden');
     talentPage.classList.add('hidden');
     rankingsPage.classList.add('hidden');
-    
+    authPage.classList.add('hidden');
+    userDetailPage.classList.add('hidden');
+
     if (page === 'home') {
         homePage.classList.remove('hidden');
     } else if (page === 'talent') {
@@ -45,6 +47,9 @@ function switchPage(page) {
     } else if (page === 'rankings') {
         rankingsPage.classList.remove('hidden');
         loadRankings();
+    } else if (page === 'auth') {
+        authPage.classList.remove('hidden');
+        initAuthPage();
     }
 }
 
@@ -205,9 +210,9 @@ function clearFilters() {
     filterPlayers();
 }
 
-talentForm.addEventListener('submit', async (e) => {
+talentForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    
+
     const formData = new FormData(talentForm);
     const data = {
         nickname: formData.get('nickname'),
@@ -219,24 +224,15 @@ talentForm.addEventListener('submit', async (e) => {
         position: formData.get('position') || null,
         playStyle: formData.getAll('playStyle')
     };
-    
+
     try {
-        const response = await fetch(`${API_BASE}/api/analyze`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            showTalentResult(result.result);
-        } else {
-            alert('分析失败: ' + result.error);
-        }
+        const userId = DB.saveProfile(data);
+        const result = analyzeTalent(data);
+        DB.saveTalent(userId, result);
+        showTalentResult(result);
     } catch (error) {
-        console.error('请求失败:', error);
-        alert('无法连接后端服务，请确保Flask服务器正在运行 (python app.py)');
+        console.error('分析失败:', error);
+        alert('分析失败，请检查输入数据');
     }
 });
 
@@ -283,18 +279,16 @@ document.getElementById('retry-btn').addEventListener('click', () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 });
 
-async function loadRankings() {
+function loadRankings() {
     try {
-        const response = await fetch(`${API_BASE}/api/rankings?limit=20`);
-        const data = await response.json();
-        
-        if (data.success && data.data.length > 0) {
-            renderRankings(data.data);
+        const data = DB.getRankings(20);
+        if (data.length > 0) {
+            renderRankings(data);
         } else {
             rankingsList.innerHTML = '<div class="empty-state"><p class="empty-text">暂无数据，快去提交你的天赋分析吧！</p></div>';
         }
     } catch (error) {
-        rankingsList.innerHTML = '<div class="empty-state"><p class="empty-text">无法连接后端服务</p></div>';
+        rankingsList.innerHTML = '<div class="empty-state"><p class="empty-text">数据加载失败</p></div>';
     }
 }
 
@@ -318,19 +312,17 @@ function renderRankings(rankings) {
     });
 }
 
-async function loadUserDetail(userId) {
+function loadUserDetail(userId) {
     try {
-        const response = await fetch(`${API_BASE}/api/user/${userId}`);
-        const result = await response.json();
-        
-        if (result.success) {
-            showUserDetail(result.data);
+        const result = DB.getUserDetail(parseInt(userId));
+        if (result) {
+            showUserDetail(result);
         } else {
             alert('获取用户详情失败');
         }
     } catch (error) {
-        console.error('请求失败:', error);
-        alert('无法连接后端服务');
+        console.error('加载失败:', error);
+        alert('数据加载失败');
     }
 }
 
@@ -384,12 +376,286 @@ document.getElementById('back-to-rankings').addEventListener('click', () => {
     rankingsPage.classList.remove('hidden');
 });
 
+// ====== 认证页面逻辑 ======
+
+let recoverState = { step: 1, nickname: '', resetToken: '' };
+
+function initAuthPage() {
+    loadSecurityQuestions();
+    resetAuthForms();
+    Auth.updateNavUI();
+}
+
+async function loadSecurityQuestions() {
+    const select = document.getElementById('register-security-question');
+    if (!select) return;
+    try {
+        const data = await Auth.getSecurityQuestions();
+        if (data.success && data.data) {
+            select.innerHTML = '<option value="">请选择密保问题</option>' +
+                data.data.map(q => '<option value="' + q + '">' + q + '</option>').join('');
+        }
+    } catch {
+        // 离线下使用默认列表
+        const defaults = [
+            "你最喜欢的篮球运动员是谁？",
+            "你的小学校名是什么？",
+            "你母亲的姓名是什么？",
+            "你的出生城市是哪里？",
+            "你最喜欢的运动是什么？",
+            "你的第一个宠物的名字是什么？"
+        ];
+        select.innerHTML = '<option value="">请选择密保问题</option>' +
+            defaults.map(q => '<option value="' + q + '">' + q + '</option>').join('');
+    }
+}
+
+function resetAuthForms() {
+    document.querySelectorAll('.auth-form').forEach(f => f.reset());
+    document.querySelectorAll('.auth-message').forEach(el => { el.textContent = ''; el.className = 'auth-message'; });
+    switchAuthTab('login');
+    resetRecoverFlow();
+}
+
+function switchAuthTab(tab) {
+    document.querySelectorAll('.auth-tab').forEach(t => t.classList.toggle('active', t.dataset.authTab === tab));
+    document.querySelectorAll('.auth-panel').forEach(p => p.classList.toggle('active', p.id === 'auth-panel-' + tab));
+    if (tab === 'recover') {
+        resetRecoverFlow();
+    }
+}
+
+function showMessage(containerId, text, type) {
+    const el = document.getElementById(containerId);
+    el.textContent = text;
+    el.className = 'auth-message ' + (type === 'error' ? 'auth-error' : 'auth-success');
+    if (type === 'success') {
+        setTimeout(() => { el.textContent = ''; el.className = 'auth-message'; }, 3000);
+    }
+}
+
+// 登录
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const nickname = form.nickname.value.trim();
+    const password = form.password.value;
+
+    if (!nickname || !password) {
+        showMessage('login-message', '请填写昵称和密码', 'error');
+        return;
+    }
+
+    const submitBtn = form.querySelector('.auth-btn-submit');
+    submitBtn.disabled = true;
+    submitBtn.textContent = '登录中...';
+
+    const data = await Auth.login(nickname, password);
+
+    submitBtn.disabled = false;
+    submitBtn.textContent = '登录';
+
+    if (data.success) {
+        Auth.updateNavUI();
+        showMessage('login-message', '登录成功！', 'success');
+        setTimeout(() => {
+            switchPage('talent');
+            navBtns.forEach(b => b.classList.remove('active'));
+            document.querySelector('[data-page="talent"]').classList.add('active');
+        }, 800);
+    } else {
+        showMessage('login-message', data.message || '登录失败', 'error');
+    }
+});
+
+// 注册
+document.getElementById('register-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const nickname = form.nickname.value.trim();
+    const password = form.password.value;
+    const confirmPassword = form.confirmPassword.value;
+    const securityQuestion = form.securityQuestion.value;
+    const securityAnswer = form.securityAnswer.value.trim();
+
+    if (!nickname || !password || !securityQuestion || !securityAnswer) {
+        showMessage('register-message', '请填写所有必填项', 'error');
+        return;
+    }
+    if (password !== confirmPassword) {
+        showMessage('register-message', '两次密码输入不一致', 'error');
+        return;
+    }
+    if (password.length < 4) {
+        showMessage('register-message', '密码至少需要4个字符', 'error');
+        return;
+    }
+
+    const submitBtn = form.querySelector('.auth-btn-submit');
+    submitBtn.disabled = true;
+    submitBtn.textContent = '注册中...';
+
+    const data = await Auth.register(nickname, password, securityQuestion, securityAnswer);
+
+    submitBtn.disabled = false;
+    submitBtn.textContent = '注册';
+
+    if (data.success) {
+        Auth.updateNavUI();
+        showMessage('register-message', '注册成功！', 'success');
+        setTimeout(() => {
+            switchPage('talent');
+            navBtns.forEach(b => b.classList.remove('active'));
+            document.querySelector('[data-page="talent"]').classList.add('active');
+        }, 800);
+    } else {
+        showMessage('register-message', data.message || '注册失败', 'error');
+    }
+});
+
+// Tab 切换
+document.querySelectorAll('.auth-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        switchAuthTab(tab.dataset.authTab);
+    });
+});
+
+// 导航：登录/注册 ↔ 找回密码
+document.getElementById('go-to-recover').addEventListener('click', () => {
+    document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+    switchAuthTab('recover');
+});
+document.getElementById('go-to-register').addEventListener('click', () => switchAuthTab('register'));
+document.getElementById('go-to-login').addEventListener('click', () => switchAuthTab('login'));
+document.getElementById('go-back-to-login').addEventListener('click', () => {
+    resetRecoverFlow();
+    switchAuthTab('login');
+});
+
+// 找回密码流程
+function resetRecoverFlow() {
+    recoverState = { step: 1, nickname: '', resetToken: '' };
+    document.getElementById('recover-step-1').classList.remove('hidden');
+    document.getElementById('recover-step-2').classList.add('hidden');
+    document.getElementById('recover-step-3').classList.add('hidden');
+    document.getElementById('recover-submit-btn').textContent = '下一步';
+    updateRecoverSteps(1);
+    const msg = document.getElementById('recover-message');
+    msg.textContent = '';
+    msg.className = 'auth-message';
+}
+
+function updateRecoverSteps(activeStep) {
+    document.querySelectorAll('.recover-step').forEach(el => {
+        const step = parseInt(el.dataset.step);
+        el.classList.remove('active', 'done');
+        if (step < activeStep) el.classList.add('done');
+        if (step === activeStep) el.classList.add('active');
+    });
+}
+
+document.getElementById('recover-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msgEl = document.getElementById('recover-message');
+    const submitBtn = document.getElementById('recover-submit-btn');
+
+    if (recoverState.step === 1) {
+        const nickname = e.target.recoverNickname.value.trim();
+        if (!nickname) {
+            showMessage('recover-message', '请输入昵称', 'error');
+            return;
+        }
+        submitBtn.disabled = true;
+        submitBtn.textContent = '查询中...';
+        const data = await Auth.forgotPassword(nickname);
+        submitBtn.disabled = false;
+        submitBtn.textContent = '下一步';
+
+        if (data.success) {
+            recoverState.nickname = nickname;
+            recoverState.step = 2;
+            document.getElementById('recover-step-1').classList.add('hidden');
+            document.getElementById('recover-step-2').classList.remove('hidden');
+            document.getElementById('recover-question-display').textContent = data.question;
+            updateRecoverSteps(2);
+            msgEl.textContent = '';
+            msgEl.className = 'auth-message';
+            e.target.securityAnswer.value = '';
+        } else {
+            showMessage('recover-message', data.message || '用户不存在', 'error');
+        }
+    } else if (recoverState.step === 2) {
+        const answer = e.target.securityAnswer.value.trim();
+        if (!answer) {
+            showMessage('recover-message', '请输入密保答案', 'error');
+            return;
+        }
+        submitBtn.disabled = true;
+        submitBtn.textContent = '验证中...';
+        const data = await Auth.verifyAnswer(recoverState.nickname, answer);
+        submitBtn.disabled = false;
+        submitBtn.textContent = '重置密码';
+
+        if (data.success) {
+            recoverState.resetToken = data.resetToken;
+            recoverState.step = 3;
+            document.getElementById('recover-step-2').classList.add('hidden');
+            document.getElementById('recover-step-3').classList.remove('hidden');
+            updateRecoverSteps(3);
+            msgEl.textContent = '';
+            msgEl.className = 'auth-message';
+            e.target.newPassword.value = '';
+        } else {
+            showMessage('recover-message', data.message || '验证失败', 'error');
+        }
+    } else if (recoverState.step === 3) {
+        const newPassword = e.target.newPassword.value;
+        if (!newPassword || newPassword.length < 4) {
+            showMessage('recover-message', '密码至少需要4个字符', 'error');
+            return;
+        }
+        submitBtn.disabled = true;
+        submitBtn.textContent = '重置中...';
+        const data = await Auth.resetPassword(recoverState.nickname, recoverState.resetToken, newPassword);
+        submitBtn.disabled = false;
+        submitBtn.textContent = '完成';
+
+        if (data.success) {
+            showMessage('recover-message', '密码重置成功！请用新密码登录', 'success');
+            setTimeout(() => {
+                resetRecoverFlow();
+                switchAuthTab('login');
+            }, 1500);
+        } else {
+            showMessage('recover-message', data.message || '重置失败', 'error');
+        }
+    }
+});
+
+// 导航栏登录按钮
+document.getElementById('nav-auth-btn').addEventListener('click', () => {
+    if (Auth.isLoggedIn()) {
+        if (confirm('确定要退出登录吗？')) {
+            Auth.logout().then(() => {
+                Auth.updateNavUI();
+                switchPage('home');
+                navBtns.forEach(b => b.classList.remove('active'));
+                document.querySelector('[data-page="home"]').classList.add('active');
+            });
+        }
+    } else {
+        switchPage('auth');
+        navBtns.forEach(b => b.classList.remove('active'));
+    }
+});
+
 function init() {
     searchInput.addEventListener('input', debouncedFilter);
     clearFiltersBtn.addEventListener('click', clearFilters);
     backBtn.addEventListener('click', showHome);
-    
+
     loadPlayers();
+    Auth.updateNavUI();
 }
 
 document.addEventListener('DOMContentLoaded', init);

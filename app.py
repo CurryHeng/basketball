@@ -21,6 +21,17 @@ from backend.database import (
     get_user_detail
 )
 from backend.talent_analyzer import analyze_talent
+from backend.auth import (
+    register,
+    login,
+    logout,
+    get_security_question,
+    verify_security_answer,
+    reset_password,
+    change_nickname,
+    get_user_by_token,
+    SECURITY_QUESTIONS
+)
 
 app = Flask(__name__)
 
@@ -194,17 +205,227 @@ def duel_compare():
 def get_templates():
     """获取球星模板列表（方便前端展示）"""
     from backend.config.matching_rules import STAR_TEMPLATES_ACTIVE, STAR_TEMPLATES_FUN
-    
-    active = [{'name': t['name'], 'nickname': t['nickname'], 'position': t['position']} 
+
+    active = [{'name': t['name'], 'nickname': t['nickname'], 'position': t['position']}
               for t in STAR_TEMPLATES_ACTIVE]
-    fun = [{'name': t['name'], 'nickname': t['nickname']} 
+    fun = [{'name': t['name'], 'nickname': t['nickname']}
            for t in STAR_TEMPLATES_FUN]
-    
+
     return jsonify({
         'success': True,
         'active': active,
         'fun': fun
     })
+
+
+# ========== 认证接口 ==========
+
+def _get_user_from_header():
+    """从 Authorization header 中解析用户"""
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return None
+    token = auth_header[7:]
+    return get_user_by_token(token)
+
+
+@app.route('/api/auth/security-questions', methods=['GET'])
+def get_security_questions():
+    """获取预设密保问题列表"""
+    return jsonify({
+        'success': True,
+        'data': SECURITY_QUESTIONS
+    })
+
+
+@app.route('/api/auth/register', methods=['POST', 'OPTIONS'])
+def auth_register():
+    """注册"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'ok'})
+
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': '请求数据为空'}), 400
+
+        ok, msg, user_id = register(
+            data.get('nickname', ''),
+            data.get('password', ''),
+            data.get('securityQuestion', ''),
+            data.get('securityAnswer', '')
+        )
+
+        status_code = 200 if ok else 400
+        result = {'success': ok, 'message': msg}
+        if user_id:
+            result['userId'] = user_id
+        return jsonify(result), status_code
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/auth/login', methods=['POST', 'OPTIONS'])
+def auth_login():
+    """登录"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'ok'})
+
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': '请求数据为空'}), 400
+
+        ok, msg, token, user = login(
+            data.get('nickname', ''),
+            data.get('password', '')
+        )
+
+        status_code = 200 if ok else 400
+        result = {'success': ok, 'message': msg}
+        if token:
+            result['token'] = token
+            result['user'] = user
+        return jsonify(result), status_code
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/auth/logout', methods=['POST', 'OPTIONS'])
+def auth_logout():
+    """登出"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'ok'})
+
+    try:
+        token = request.headers.get('Authorization', '')
+        if token.startswith('Bearer '):
+            token = token[7:]
+            ok, msg = logout(token)
+        else:
+            ok, msg = False, "未提供有效令牌"
+
+        status_code = 200 if ok else 400
+        return jsonify({'success': ok, 'message': msg}), status_code
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/auth/forgot-password', methods=['POST', 'OPTIONS'])
+def auth_forgot_password():
+    """找回密码 - 获取密保问题"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'ok'})
+
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': '请求数据为空'}), 400
+
+        ok, msg, _ = get_security_question(data.get('nickname', ''))
+
+        status_code = 200 if ok else 400
+        result = {'success': ok}
+        if ok:
+            result['question'] = msg
+        else:
+            result['message'] = msg
+        return jsonify(result), status_code
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/auth/verify-answer', methods=['POST', 'OPTIONS'])
+def auth_verify_answer():
+    """验证密保答案"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'ok'})
+
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': '请求数据为空'}), 400
+
+        ok, msg, reset_token = verify_security_answer(
+            data.get('nickname', ''),
+            data.get('securityAnswer', '')
+        )
+
+        status_code = 200 if ok else 400
+        result = {'success': ok, 'message': msg}
+        if reset_token:
+            result['resetToken'] = reset_token
+        return jsonify(result), status_code
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/auth/reset-password', methods=['POST', 'OPTIONS'])
+def auth_reset_password():
+    """重置密码"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'ok'})
+
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': '请求数据为空'}), 400
+
+        ok, msg, _ = reset_password(
+            data.get('nickname', ''),
+            data.get('resetToken', ''),
+            data.get('newPassword', '')
+        )
+
+        status_code = 200 if ok else 400
+        return jsonify({'success': ok, 'message': msg}), status_code
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/auth/change-nickname', methods=['POST', 'OPTIONS'])
+def auth_change_nickname():
+    """修改昵称"""
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'ok'})
+
+    try:
+        user = _get_user_from_header()
+        if not user:
+            return jsonify({'success': False, 'message': '请先登录'}), 401
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': '请求数据为空'}), 400
+
+        ok, msg = change_nickname(user['id'], data.get('newNickname', ''))
+
+        status_code = 200 if ok else 400
+        return jsonify({'success': ok, 'message': msg}), status_code
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/auth/me', methods=['GET'])
+def auth_me():
+    """获取当前用户信息"""
+    try:
+        user = _get_user_from_header()
+        if not user:
+            return jsonify({'success': False, 'message': '未登录'}), 401
+
+        return jsonify({'success': True, 'user': user})
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 
 if __name__ == '__main__':
     init_db()

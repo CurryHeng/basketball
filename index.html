@@ -12,6 +12,7 @@
         <button class="nav-btn" data-page="talent">天赋分析</button>
         <button class="nav-btn" data-page="rankings">排行榜</button>
         <a href="image-search.html" class="nav-link-btn">图片搜索</a>
+        <button id="nav-auth-btn" class="nav-auth-btn" data-page="auth">登录</button>
     </nav>
 
     <div id="home-page" class="page">
@@ -207,6 +208,99 @@
         </div>
     </div>
 
+    <div id="auth-page" class="page hidden">
+        <div class="auth-container">
+            <h2 class="auth-title">🏀 球友登录</h2>
+
+            <div class="auth-tabs">
+                <button class="auth-tab active" data-auth-tab="login">登录</button>
+                <button class="auth-tab" data-auth-tab="register">注册</button>
+            </div>
+
+            <!-- 登录面板 -->
+            <div class="auth-panel active" id="auth-panel-login">
+                <form class="auth-form" id="login-form">
+                    <div id="login-message"></div>
+                    <div class="form-group">
+                        <label>昵称</label>
+                        <input type="text" name="nickname" placeholder="输入你的球友昵称" required>
+                    </div>
+                    <div class="form-group">
+                        <label>密码</label>
+                        <input type="password" name="password" placeholder="输入密码" required>
+                    </div>
+                    <button type="submit" class="auth-btn-submit">登录</button>
+                    <button type="button" class="auth-link" id="go-to-recover">忘记密码？</button>
+                    <button type="button" class="auth-link" id="go-to-register">没有账号？去注册</button>
+                </form>
+            </div>
+
+            <!-- 注册面板 -->
+            <div class="auth-panel" id="auth-panel-register">
+                <form class="auth-form" id="register-form">
+                    <div id="register-message"></div>
+                    <div class="form-group">
+                        <label>昵称 <span style="color:var(--primary)">*</span></label>
+                        <input type="text" name="nickname" placeholder="起一个独特的球友昵称" required maxlength="20">
+                    </div>
+                    <div class="form-group">
+                        <label>密码 <span style="color:var(--primary)">*</span></label>
+                        <input type="password" name="password" placeholder="至少4个字符" required minlength="4">
+                    </div>
+                    <div class="form-group">
+                        <label>确认密码 <span style="color:var(--primary)">*</span></label>
+                        <input type="password" name="confirmPassword" placeholder="再次输入密码" required minlength="4">
+                    </div>
+                    <div class="form-group">
+                        <label>密保问题 <span style="color:var(--primary)">*</span></label>
+                        <select name="securityQuestion" id="register-security-question" required>
+                            <option value="">请选择密保问题</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>密保答案 <span style="color:var(--primary)">*</span></label>
+                        <input type="text" name="securityAnswer" placeholder="输入你的答案" required>
+                    </div>
+                    <button type="submit" class="auth-btn-submit">注册</button>
+                    <button type="button" class="auth-link" id="go-to-login">已有账号？去登录</button>
+                </form>
+            </div>
+
+            <!-- 找回密码面板 -->
+            <div class="auth-panel" id="auth-panel-recover">
+                <div class="recover-steps" id="recover-steps">
+                    <span class="recover-step active" data-step="1">1</span>
+                    <span class="recover-step-divider"></span>
+                    <span class="recover-step" data-step="2">2</span>
+                    <span class="recover-step-divider"></span>
+                    <span class="recover-step" data-step="3">3</span>
+                </div>
+                <form class="auth-form" id="recover-form">
+                    <div id="recover-message"></div>
+                    <!-- 步骤1：输入昵称 -->
+                    <div class="form-group" id="recover-step-1">
+                        <label>输入你的昵称</label>
+                        <input type="text" name="recoverNickname" placeholder="输入注册时用的昵称" required>
+                    </div>
+                    <!-- 步骤2：回答密保问题 -->
+                    <div class="form-group hidden" id="recover-step-2">
+                        <label>密保问题</label>
+                        <p id="recover-question-display" style="color:var(--primary);margin-bottom:0.75rem;font-weight:600;"></p>
+                        <label>你的答案</label>
+                        <input type="text" name="securityAnswer" placeholder="输入你设置的答案" required>
+                    </div>
+                    <!-- 步骤3：设置新密码 -->
+                    <div class="form-group hidden" id="recover-step-3">
+                        <label>新密码</label>
+                        <input type="password" name="newPassword" placeholder="至少4个字符" required minlength="4">
+                    </div>
+                    <button type="submit" class="auth-btn-submit" id="recover-submit-btn">下一步</button>
+                    <button type="button" class="auth-link" id="go-back-to-login">返回登录</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <div id="detail-page" class="page hidden">
         <div class="detail-container">
             <div class="detail-left">
@@ -257,6 +351,10 @@
         </div>
     </div>
 
+    <script src="js/matching-data.js"></script>
+    <script src="js/local-db.js"></script>
+    <script src="js/talent-analyzer.js"></script>
+    <script src="js/auth.js"></script>
     <script src="js/main.js"></script>
 </body>
 </html>

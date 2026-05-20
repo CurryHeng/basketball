@@ -21,7 +21,30 @@ def init_db():
     """初始化数据库表"""
     conn = get_db()
     cursor = conn.cursor()
-    
+
+    # 用户认证表
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nickname TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            security_question TEXT NOT NULL,
+            security_answer_hash TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # 会话表
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            token TEXT UNIQUE NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+    """)
+
     # 用户身体素质数据表
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS user_profiles (
@@ -37,7 +60,7 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    
+
     # 天赋评分记录表
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS talent_scores (
@@ -53,7 +76,7 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES user_profiles (id)
         )
     """)
-    
+
     # 排行榜表
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS rankings (
@@ -65,7 +88,7 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES user_profiles (id)
         )
     """)
-    
+
     # 预留：视频上传记录表
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS video_uploads (
@@ -77,7 +100,7 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES user_profiles (id)
         )
     """)
-    
+
     # 预留：双人对比记录表
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS duel_comparisons (
@@ -91,7 +114,7 @@ def init_db():
             FOREIGN KEY (user2_id) REFERENCES user_profiles (id)
         )
     """)
-    
+
     conn.commit()
     conn.close()
     print("数据库初始化完成")
@@ -275,16 +298,16 @@ def get_all_users():
     """获取所有用户（用于双人对比）"""
     conn = get_db()
     cursor = conn.cursor()
-    
+
     cursor.execute("""
         SELECT id, nickname, height, weight, position
         FROM user_profiles
         ORDER BY created_at DESC
     """)
-    
+
     rows = cursor.fetchall()
     conn.close()
-    
+
     users = []
     for row in rows:
         users.append({
@@ -294,5 +317,101 @@ def get_all_users():
             'weight': row['weight'],
             'position': row['position']
         })
-    
+
     return users
+
+
+# ========== 认证相关 ==========
+
+def create_user(nickname, password_hash, security_question, security_answer_hash):
+    """创建用户，成功返回 user_id，昵称重复返回 None"""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            INSERT INTO users (nickname, password_hash, security_question, security_answer_hash)
+            VALUES (?, ?, ?, ?)
+        """, (nickname, password_hash, security_question, security_answer_hash))
+        user_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        return user_id
+    except sqlite3.IntegrityError:
+        conn.close()
+        return None
+
+
+def get_user_by_nickname(nickname):
+    """按昵称查找用户"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE nickname = ?", (nickname,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_user_by_id(user_id):
+    """按ID查找用户"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, nickname, security_question, created_at FROM users WHERE id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def create_session(user_id, token):
+    """创建会话"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO sessions (user_id, token) VALUES (?, ?)", (user_id, token))
+    conn.commit()
+    conn.close()
+
+
+def get_session_by_token(token):
+    """通过 token 查询会话及对应用户"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT s.id, s.user_id, s.token, u.nickname
+        FROM sessions s
+        JOIN users u ON s.user_id = u.id
+        WHERE s.token = ?
+    """, (token,))
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def delete_session(token):
+    """删除会话（登出）"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM sessions WHERE token = ?", (token,))
+    conn.commit()
+    conn.close()
+
+
+def update_user_nickname(user_id, new_nickname):
+    """更新昵称，成功返回 True，昵称重复返回 False"""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE users SET nickname = ? WHERE id = ?", (new_nickname, user_id))
+        conn.commit()
+        conn.close()
+        return True
+    except sqlite3.IntegrityError:
+        conn.close()
+        return False
+
+
+def update_user_password(user_id, new_password_hash):
+    """更新密码"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET password_hash = ? WHERE id = ?", (new_password_hash, user_id))
+    conn.commit()
+    conn.close()

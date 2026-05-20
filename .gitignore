@@ -40,3 +40,6 @@ Thumbs.db
 
 # PowerShell 脚本（可选）
 # fetch_nba.ps1
+
+# Local Netlify folder
+.netlify
