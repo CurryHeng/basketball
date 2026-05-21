@@ -24,14 +24,17 @@ def parse_play_style(style_input):
         styles = [s.strip() for s in style_input.replace('，', ',').split(',')]
     else:
         styles = []
-    
+
+    if not styles:
+        return None
+
     matched_styles = []
     for style in styles:
         for key, keywords in PLAY_STYLE_KEYWORDS.items():
             if any(kw in style.lower() for kw in keywords):
                 matched_styles.append(key)
-    
-    return list(set(matched_styles)) if matched_styles else ["全能"]
+
+    return list(set(matched_styles)) if matched_styles else None
 
 def calculate_height_score(height_cm, template):
     """计算身高匹配分数"""
@@ -57,60 +60,88 @@ def calculate_jump_score(vertical, running, template):
     """计算弹跳匹配分数"""
     v_min, v_max = template['vertical_jump']
     r_min, r_max = template['running_jump']
-    
+
     v_score = 100 if v_min <= vertical <= v_max else max(0, 100 - abs(vertical - (v_min + v_max) / 2) * 2)
     r_score = 100 if r_min <= running <= r_max else max(0, 100 - abs(running - (r_min + r_max) / 2) * 2)
-    
+
     return (v_score + r_score) / 2
 
 def calculate_style_match(user_styles, template_styles):
     """计算打法风格匹配分数"""
     if not user_styles or not template_styles:
         return 50
-    
+
     matches = len(set(user_styles) & set(template_styles))
     total = len(set(user_styles) | set(template_styles))
-    
+
     return (matches / total) * 100 if total > 0 else 50
+
+def calculate_arm_span_score(arm_span_cm, height_cm, template):
+    """计算臂展比例匹配分数"""
+    if not arm_span_cm or not height_cm or height_cm == 0:
+        return 50
+    ratio = arm_span_cm / height_cm
+    min_r, max_r = template['arm_span_ratio']
+    if min_r <= ratio <= max_r:
+        return 100
+    if ratio < min_r:
+        return max(0, 100 - (min_r - ratio) * 200)
+    return max(0, 100 - (ratio - max_r) * 200)
+
+def calculate_position_match(user_position, template_position):
+    """计算位置匹配分数"""
+    if not user_position:
+        return 50
+    if user_position == template_position:
+        return 100
+    return 0
 
 def match_star_active(user_data):
     """匹配现役NBA球星模板"""
     height_cm = user_data.get('height', 180)
     weight_kg = user_data.get('weight', 75)
-    arm_span = user_data.get('armSpan', height_cm * 1.02)
+    arm_span = user_data.get('armSpan', None)
     vertical_jump = user_data.get('verticalJump', 65)
     running_jump = user_data.get('runningJump', 80)
+    user_position = user_data.get('position', None)
     play_styles = parse_play_style(user_data.get('playStyle', []))
-    
+
     best_match = None
-    best_score = 0
-    
+    best_score = -1
+
     for template in STAR_TEMPLATES_ACTIVE:
         h_score = calculate_height_score(height_cm, template)
         w_score = calculate_weight_score(weight_kg, template)
+        a_score = calculate_arm_span_score(arm_span, height_cm, template)
         j_score = calculate_jump_score(vertical_jump, running_jump, template)
         s_score = calculate_style_match(play_styles, template.get('play_style', []))
-        
+        p_score = calculate_position_match(user_position, template['position'])
+
         total = (
             h_score * SCORING_WEIGHTS['height'] +
             w_score * SCORING_WEIGHTS['weight'] +
+            a_score * SCORING_WEIGHTS['arm_span'] +
             j_score * (SCORING_WEIGHTS['vertical_jump'] + SCORING_WEIGHTS['running_jump']) +
-            s_score * SCORING_WEIGHTS['play_style_match']
+            s_score * SCORING_WEIGHTS['play_style_match'] +
+            p_score * SCORING_WEIGHTS['position']
         )
-        
+
         if total > best_score:
             best_score = total
             best_match = template.copy()
             best_match['match_score'] = round(total, 1)
-    
+
     return best_match
 
 def match_star_fun(user_data):
     """匹配养生娱乐版本模板"""
     import random
-    
+
     play_styles = parse_play_style(user_data.get('playStyle', []))
-    
+
+    if not play_styles:
+        return random.choice(STAR_TEMPLATES_FUN)
+
     if '投射' in play_styles or '投篮' in str(play_styles):
         return STAR_TEMPLATES_FUN[1]
     elif '防守' in play_styles:

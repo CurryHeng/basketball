@@ -151,10 +151,11 @@ STAR_TEMPLATES_FUN = [
 SCORING_WEIGHTS = {
     "height": 0.15,
     "weight": 0.10,
-    "arm_span": 0.15,
-    "vertical_jump": 0.20,
-    "running_jump": 0.20,
-    "play_style_match": 0.20
+    "arm_span": 0.10,
+    "vertical_jump": 0.15,
+    "running_jump": 0.15,
+    "play_style_match": 0.25,
+    "position": 0.10
 }
 
 # ==================== 天赋评分文案模板 ====================

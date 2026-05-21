@@ -2,7 +2,7 @@
 
 function parsePlayStyle(styleInput) {
     if (!styleInput || (Array.isArray(styleInput) && styleInput.length === 0)) {
-        return ["全能"];
+        return null;
     }
     const styles = Array.isArray(styleInput) ? styleInput
         : styleInput.replace(/，/g, ',').split(',').map(s => s.trim());
@@ -15,7 +15,7 @@ function parsePlayStyle(styleInput) {
             }
         }
     }
-    return [...new Set(matched)].length > 0 ? [...new Set(matched)] : ["全能"];
+    return [...new Set(matched)].length > 0 ? [...new Set(matched)] : null;
 }
 
 function calcHeightScore(heightCm, template) {
@@ -43,32 +43,53 @@ function calcJumpScore(vertical, running, template) {
 }
 
 function calcStyleMatch(userStyles, templateStyles) {
-    if (!userStyles.length || !templateStyles.length) return 50;
+    if (!userStyles || !userStyles.length || !templateStyles.length) return 50;
     const intersection = userStyles.filter(s => templateStyles.includes(s));
     const union = [...new Set([...userStyles, ...templateStyles])];
     return (intersection.length / union.length) * 100;
 }
 
+function calcArmSpanScore(armSpanCm, heightCm, template) {
+    if (!armSpanCm || !heightCm || heightCm === 0) return 50;
+    const ratio = armSpanCm / heightCm;
+    const [minR, maxR] = template.arm_span_ratio;
+    if (ratio >= minR && ratio <= maxR) return 100;
+    if (ratio < minR) return Math.max(0, 100 - (minR - ratio) * 200);
+    return Math.max(0, 100 - (ratio - maxR) * 200);
+}
+
+function calcPositionMatch(userPosition, templatePosition) {
+    if (!userPosition) return 50;
+    if (userPosition === templatePosition) return 100;
+    return 0;
+}
+
 function matchStarActive(userData) {
     const heightCm = userData.height || 180;
     const weightKg = userData.weight || 75;
+    const armSpanCm = userData.armSpan || null;
     const verticalJump = userData.verticalJump || 65;
     const runningJump = userData.runningJump || 80;
+    const userPosition = userData.position || null;
     const playStyles = parsePlayStyle(userData.playStyle);
 
     let bestMatch = null;
-    let bestScore = 0;
+    let bestScore = -1;
 
     for (const template of STAR_TEMPLATES_ACTIVE) {
         const hScore = calcHeightScore(heightCm, template);
         const wScore = calcWeightScore(weightKg, template);
+        const aScore = calcArmSpanScore(armSpanCm, heightCm, template);
         const jScore = calcJumpScore(verticalJump, runningJump, template);
         const sScore = calcStyleMatch(playStyles, template.play_style || []);
+        const pScore = calcPositionMatch(userPosition, template.position);
 
         const total = hScore * SCORING_WEIGHTS.height +
             wScore * SCORING_WEIGHTS.weight +
+            aScore * SCORING_WEIGHTS.arm_span +
             jScore * (SCORING_WEIGHTS.vertical_jump + SCORING_WEIGHTS.running_jump) +
-            sScore * SCORING_WEIGHTS.play_style_match;
+            sScore * SCORING_WEIGHTS.play_style_match +
+            pScore * SCORING_WEIGHTS.position;
 
         if (total > bestScore) {
             bestScore = total;
@@ -80,6 +101,9 @@ function matchStarActive(userData) {
 
 function matchStarFun(userData) {
     const playStyles = parsePlayStyle(userData.playStyle);
+    if (!playStyles || playStyles.length === 0) {
+        return STAR_TEMPLATES_FUN[Math.floor(Math.random() * STAR_TEMPLATES_FUN.length)];
+    }
     if (playStyles.includes("投射")) return STAR_TEMPLATES_FUN[1];
     if (playStyles.includes("防守")) return STAR_TEMPLATES_FUN[0];
     if (playStyles.includes("运球")) return STAR_TEMPLATES_FUN[3];
