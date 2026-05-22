@@ -194,6 +194,11 @@ function showDetail(player) {
     document.getElementById('detail-weight').textContent = player.weight;
     document.getElementById('detail-honors').textContent = player.honors;
     document.getElementById('detail-action-desc').textContent = player.actionDescription;
+
+    // 初始化球迷分享画廊
+    if (typeof FanGallery !== 'undefined') {
+        FanGallery.init(player.id);
+    }
 }
 
 function showHome() {

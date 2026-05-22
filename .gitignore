@@ -41,5 +41,11 @@ Thumbs.db
 # PowerShell 脚本（可选）
 # fetch_nba.ps1
 
+# Node modules
+node_modules/
+
+# User uploads (runtime data)
+uploads/
+
 # Local Netlify folder
 .netlify
